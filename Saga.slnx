@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="Saga/Saga.csproj" />
+  <Project Path="src/Saga.Client/Saga.Client.csproj" />
+  <Project Path="src/Saga.Server/Saga.Server.csproj" Id="7519b355-ab82-4ddb-a826-16be20474b2d" />
+  <Project Path="src/Saga.Shared/Saga.Shared.csproj" />
 </Solution>
