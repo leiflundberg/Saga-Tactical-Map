@@ -13,4 +13,8 @@
     <PackageReference Include="Mapsui.Wpf" Version="5.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Saga.Shared\Saga.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

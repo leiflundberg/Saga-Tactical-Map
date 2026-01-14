@@ -6,7 +6,7 @@
         xmlns:mapsui="clr-namespace:Mapsui.UI.Wpf;assembly=Mapsui.UI.Wpf"
         xmlns:local="clr-namespace:Saga"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="1080" Width="1920">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -15,21 +15,51 @@
 
         <mapsui:MapControl x:Name="mapControl" Grid.Column="0" />
 
+        <Border Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" 
+            Background="#80000000" Margin="10" Padding="5" CornerRadius="4"
+            IsHitTestVisible="False">
+            <TextBlock x:Name="TxtDebug" Foreground="#00FF00" FontFamily="Consolas" FontSize="12"
+                   Text="Initializing..."/>
+        </Border>
+
         <Border Grid.Column="1" Background="#2D2D30" MinWidth="250" Padding="15" 
-            BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
+        BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
             <StackPanel x:Name="DetailPanel" Visibility="Hidden">
-                <TextBlock Text="TRACK DETAILS" Foreground="White" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+                <TextBlock Text="TRACK DETAILS" Foreground="White" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
 
                 <TextBlock Text="Callsign:" Foreground="#AAAAAA" FontSize="12"/>
-                <TextBlock x:Name="TxtCallsign" Text="-" Foreground="White" FontSize="18" Margin="0,0,0,10"/>
+                <TextBlock x:Name="TxtCallsign" Text="-" Foreground="White" FontSize="24" FontWeight="Bold" Margin="0,0,0,15"/>
 
-                <TextBlock Text="Grid Ref:" Foreground="#AAAAAA" FontSize="12"/>
-                <TextBlock x:Name="TxtLocation" Text="-" Foreground="#00CCFF" FontFamily="Consolas" Margin="0,0,0,10"/>
+                <TextBlock Text="Origin / Country:" Foreground="#AAAAAA" FontSize="12"/>
+                <TextBlock x:Name="TxtCountry" Text="-" Foreground="White" FontSize="14" Margin="0,0,0,10"/>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Altitude:" Foreground="#AAAAAA" FontSize="12"/>
+                        <TextBlock x:Name="TxtAltitude" Text="-" Foreground="#00CCFF" FontSize="14" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Velocity:" Foreground="#AAAAAA" FontSize="12"/>
+                        <TextBlock x:Name="TxtVelocity" Text="-" Foreground="#00CCFF" FontSize="14" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Heading:" Foreground="#AAAAAA" FontSize="12"/>
+                <TextBlock x:Name="TxtHeading" Text="-" Foreground="#00CCFF" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Grid Ref (Lat/Lon):" Foreground="#AAAAAA" FontSize="12"/>
+                <TextBlock x:Name="TxtLocation" Text="-" Foreground="LightGray" FontFamily="Consolas" FontSize="14" Margin="0,0,0,15"/>
 
                 <TextBlock Text="Status:" Foreground="#AAAAAA" FontSize="12"/>
-                <TextBlock x:Name="TxtStatus" Text="-" Foreground="Red" FontWeight="Bold" Margin="0,0,0,20"/>
+                <TextBlock x:Name="TxtStatus" Text="-" Foreground="Red" FontWeight="Bold" FontSize="14" Margin="0,0,0,20"/>
 
-                <Button Content="CLOSE INTEL" Click="ClosePanel_Click" Padding="5" Background="#444" Foreground="White"/>
+                <Button Content="CLOSE INTEL" Click="ClosePanel_Click" Padding="8" Background="#444" Foreground="White" BorderThickness="0"/>
             </StackPanel>
         </Border>
     </Grid>
