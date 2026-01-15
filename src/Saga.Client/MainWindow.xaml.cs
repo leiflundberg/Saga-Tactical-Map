@@ -1,18 +1,18 @@
 ﻿using Mapsui;
 using Mapsui.Layers;
 using Mapsui.Manipulations;
-using Mapsui.Nts;
 using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling;
+using Mapsui.Nts;
 using NetTopologySuite.Geometries;
 using Saga.Shared;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using Brush = Mapsui.Styles.Brush;
 using Color = Mapsui.Styles.Color;
 using Pen = Mapsui.Styles.Pen;
 
@@ -22,6 +22,9 @@ namespace Saga
     {
         private MemoryLayer _tacticalLayer;
 
+        private readonly string _planeImageSource;
+        private readonly string _boatImageSource;
+
         private Dictionary<string, TrackedUnit> _units = [];
 
         private List<IFeature> _mapFeatures = [];
@@ -30,6 +33,7 @@ namespace Saga
         
         // TODO: update with deployed azure function URL
         private const string ApiUrl = "http://localhost:7038/api/GetTacticalData";
+        private const string SeaApiUrl = "http://localhost:7038/api/GetSeaTacticalData";
 
         private class TrackedUnit
         {
@@ -42,11 +46,51 @@ namespace Saga
         {
             InitializeComponent();
 
+            var planePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "plane.svg");
+            _planeImageSource = "file://" + planePath;
+
+            var boatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "boat.svg");
+            _boatImageSource = "file://" + boatPath;
+
             var map = new Mapsui.Map();
             map.Layers.Add(OpenStreetMap.CreateTileLayer());
 
-            // TODO: figure out why it is not transparent, but instead solid fill
-            //map.Layers.Add(CreateCoverageLayer());
+            var p1 = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomin, MapConstants.Lamin));
+            var p2 = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomax, MapConstants.Lamin));
+            var p3 = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomax, MapConstants.Lamax));
+            var p4 = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomin, MapConstants.Lamax));
+
+            var polygon = new Polygon(new LinearRing(
+            [
+                new Coordinate(p1.X, p1.Y),
+                new Coordinate(p2.X, p2.Y),
+                new Coordinate(p3.X, p3.Y),
+                new Coordinate(p4.X, p4.Y),
+                new Coordinate(p1.X, p1.Y)
+            ]));
+
+            var boundingBoxFeature = new GeometryFeature(polygon);
+
+            var boundingBoxLayer = new MemoryLayer
+            {
+                Name = "BoundingBoxLayer",
+                Features = [boundingBoxFeature],
+                Style = new VectorStyle
+                {
+                    Fill = null,
+                    Outline = new Pen
+                    {
+                        Color = Color.DarkGreen,
+                        Width = 2,
+                        PenStyle = PenStyle.Dot,
+                        PenStrokeCap = PenStrokeCap.Round
+                    }
+                },
+                MinVisible = 0,
+                MaxVisible = double.MaxValue
+            };
+
+            map.Layers.Add(boundingBoxLayer);
 
             _tacticalLayer = new MemoryLayer
             {
@@ -79,6 +123,7 @@ namespace Saga
 
         private void StartLiveTracking()
         {
+            // Polling Loop for Air Data
             Task.Run(async () =>
             {
                 while (true)
@@ -86,7 +131,6 @@ namespace Saga
                     try
                     {
                         var tracks = await _httpClient.GetFromJsonAsync<List<TacticalTrack>>(ApiUrl);
-
                         if (tracks != null)
                         {
                             Application.Current.Dispatcher.Invoke(() => UpdateTracks(tracks));
@@ -94,10 +138,32 @@ namespace Saga
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error fetching data: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Error fetching air data: {ex.Message}");
                     }
 
-                    await Task.Delay(5000);
+                    await Task.Delay(5000); // 5 seconds for Air
+                }
+            });
+
+            // Polling Loop for Sea Data
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        var tracks = await _httpClient.GetFromJsonAsync<List<TacticalTrack>>(SeaApiUrl);
+                        if (tracks != null)
+                        {
+                            Application.Current.Dispatcher.Invoke(() => UpdateTracks(tracks));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error fetching sea data: {ex.Message}");
+                    }
+
+                    await Task.Delay(10000); // 10 seconds for Sea (slower updates)
                 }
             });
         }
@@ -121,13 +187,18 @@ namespace Saga
                     existingUnit.Feature["Alt"] = track.Altitude;
                     existingUnit.Feature["Vel"] = track.Velocity;
                     existingUnit.Feature["Hdg"] = track.Heading;
+
+                    if (existingUnit.Feature.Styles.FirstOrDefault() is ImageStyle style)
+                    {
+                        style.SymbolRotation = track.Heading;
+                    }
                 }
                 else
                 {
                     var feature = new PointFeature(targetPoint);
                     feature["Callsign"] = track.Callsign;
                     feature["Status"] = "LIVE";
-                    feature["Type"] = "Air";
+                    feature["Type"] = track.Type;
                     feature["Lat"] = track.Lat;
                     feature["Lon"] = track.Lon;
                     feature["Country"] = track.Country;
@@ -135,15 +206,11 @@ namespace Saga
                     feature["Vel"] = track.Velocity;
                     feature["Hdg"] = track.Heading;
 
-                    // TODO: remove or update to include a little flag of every country
-                    var color = track.Country.Contains("Norway") ? Color.Blue : Color.Red;
-
-                    feature.Styles.Add(new SymbolStyle
+                    feature.Styles.Add(new ImageStyle
                     {
-                        Fill = new Brush(color),
-                        Outline = new Pen(Color.White, 2),
-                        SymbolScale = 1,
-                        SymbolType = SymbolType.Ellipse
+                        Image = new Mapsui.Styles.Image { Source = track.Type == "Sea" ? _boatImageSource : _planeImageSource },
+                        SymbolScale = 0.5,
+                        SymbolRotation = track.Heading
                     });
 
                     var newUnit = new TrackedUnit
@@ -263,53 +330,6 @@ namespace Saga
             """;
             });
         }
-
-        //private MemoryLayer CreateCoverageLayer()
-        //{
-        //    // 1. Define the 4 corners (Same as before)
-        //    var bl = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomin, MapConstants.Lamin));
-        //    var br = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomax, MapConstants.Lamin));
-        //    var tr = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomax, MapConstants.Lamax));
-        //    var tl = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomin, MapConstants.Lamax));
-
-        //    // 2. THE FIX: Create NTS 'Coordinates' instead of Mapsui 'MPoints'
-        //    var coordinates = new[]
-        //    {
-        //        new Coordinate(bl.X, bl.Y),
-        //        new Coordinate(br.X, br.Y),
-        //        new Coordinate(tr.X, tr.Y),
-        //        new Coordinate(tl.X, tl.Y),
-        //        new Coordinate(bl.X, bl.Y) // Close the loop
-        //    };
-
-        //    // 3. Create the Polygon using the NTS coordinates
-        //    var polygon = new Polygon(new LinearRing(coordinates));
-
-        //    // 4. Create Feature
-        //    var feature = new GeometryFeature(polygon);
-
-        //    // CRITICAL FIX: Remove any default styles auto-generated by Mapsui
-        //    feature.Styles.Clear();
-
-        //    feature.Styles.Add(new VectorStyle
-        //    {
-        //        // Option A: Explicitly Transparent (Safest)
-        //        Fill = new Brush(Color.Transparent),
-
-        //        Outline = new Pen
-        //        {
-        //            Color = Color.Green,
-        //            Width = 2,
-        //            PenStyle = PenStyle.Dash
-        //        }
-        //    });
-
-        //    return new MemoryLayer
-        //    {
-        //        Name = "CoverageArea",
-        //        Features = new[] { feature }
-        //    };
-        //}
 
         private void ClosePanel_Click(object sender, RoutedEventArgs e)
         {

@@ -19,6 +19,6 @@ public class TacticalTrack
     public string? Route { get; set; }    // Placeholder
     public string? ImageUrl { get; set; } // Placeholder
 
-    public bool IsHostile => false;       // OpenSky tracks are civilian/neutral
-    public string Type => "Air";
+    public bool IsHostile { get; set; } = false;       // OpenSky tracks are civilian/neutral
+    public string Type { get; set; } = "Air";
 }
