@@ -22,8 +22,8 @@ namespace Saga
     {
         private MemoryLayer _tacticalLayer;
 
-        private readonly string _planeImageSource;
-        private readonly string _boatImageSource;
+        private readonly Mapsui.Styles.Image _planeImage;
+        private readonly Mapsui.Styles.Image _boatImage;
 
         private Dictionary<string, TrackedUnit> _units = [];
 
@@ -46,11 +46,13 @@ namespace Saga
         {
             InitializeComponent();
 
-            var planePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "plane.svg");
-            _planeImageSource = "file://" + planePath;
+            // Simple plane SVG
+            var planeSvg = "<svg width='24' height='24' viewBox='0 0 24 24'><path d='M12 0 L15 9 L23 14 L23 16 L15 13 L15 20 L19 23 L19 24 L12 22 L5 24 L5 23 L9 20 L9 13 L1 16 L1 14 L9 9 Z' fill='DarkOrange'/></svg>";
+            _planeImage = new Mapsui.Styles.Image { Source = "svg-content://" + planeSvg };
 
-            var boatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "boat.svg");
-            _boatImageSource = "file://" + boatPath;
+            // Simple boat SVG (pointed front)
+            var boatSvg = "<svg width='16' height='24' viewBox='0 0 16 24'><path d='M8 0 L16 8 L16 24 L0 24 L0 8 Z' fill='DarkGreen' /></svg>";
+            _boatImage = new Mapsui.Styles.Image { Source = "svg-content://" + boatSvg };
 
             var map = new Mapsui.Map();
             map.Layers.Add(OpenStreetMap.CreateTileLayer());
@@ -208,7 +210,7 @@ namespace Saga
 
                     feature.Styles.Add(new ImageStyle
                     {
-                        Image = new Mapsui.Styles.Image { Source = track.Type == "Sea" ? _boatImageSource : _planeImageSource },
+                        Image = track.Type == "Sea" ? _boatImage : _planeImage,
                         SymbolScale = 0.5,
                         SymbolRotation = track.Heading
                     });
@@ -240,10 +242,22 @@ namespace Saga
 
             foreach (var unit in _units.Values)
             {
-                // TODO: double check that this optimization works
+                // Optimization: Skip animation for Sea units to save CPU
+                if (unit.Feature["Type"]?.ToString() == "Sea")
+                {
+                    if (unit.CurrentPosition.Distance(unit.TargetPosition) > 0.1)
+                    {
+                        unit.CurrentPosition = unit.TargetPosition;
+                        unit.Feature.Point.X = unit.CurrentPosition.X;
+                        unit.Feature.Point.Y = unit.CurrentPosition.Y;
+                        anyMoved = true;
+                    }
+                    continue;
+                }
+
                 if (unit.CurrentPosition.Distance(unit.TargetPosition) < 1.0) continue;
 
-                // LERP: Move 5% towards target every frame
+                // LERP: Move 5% towards target every frame (Air only)
                 double factor = 0.05;
                 double smoothX = Lerp(unit.CurrentPosition.X, unit.TargetPosition.X, factor);
                 double smoothY = Lerp(unit.CurrentPosition.Y, unit.TargetPosition.Y, factor);
