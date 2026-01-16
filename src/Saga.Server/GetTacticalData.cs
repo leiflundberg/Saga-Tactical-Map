@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using Saga.Shared;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -12,11 +14,17 @@ namespace Saga.Server
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<GetTacticalData> _logger;
+        private readonly IConfiguration _configuration;
 
-        public GetTacticalData(IHttpClientFactory httpClientFactory, ILogger<GetTacticalData> logger)
+        // Static variable to cache the token so we don't ask for a new one every request
+        private static string? _accessToken;
+        private static DateTime _tokenExpiry = DateTime.MinValue;
+
+        public GetTacticalData(IHttpClientFactory httpClientFactory, ILogger<GetTacticalData> logger, IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient();
             _logger = logger;
+            _configuration = configuration;
         }
 
         [Function("GetTacticalData")]
@@ -28,13 +36,23 @@ namespace Saga.Server
 
             try
             {
+                // 1. Ensure we have a valid OpenSky Access Token
+                await EnsureTokenAsync();
+
                 string url = $"https://opensky-network.org/api/states/all?" +
                              $"lamin={MapConstants.Lamin}&" +
                              $"lomin={MapConstants.Lomin}&" +
                              $"lamax={MapConstants.Lamax}&" +
                              $"lomax={MapConstants.Lomax}";
 
-                var response = await _httpClient.GetAsync(url);
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                
+                if (!string.IsNullOrEmpty(_accessToken))
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                }
+
+                var response = await _httpClient.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -68,6 +86,7 @@ namespace Saga.Server
                                 Altitude = GetDouble(rawState[7]),
                                 Velocity = GetDouble(rawState[9]),
                                 Heading = GetDouble(rawState[10]),
+                                Type = "Air",
 
                                 // Limitations:
                                 Route = "Unknown (Requires Flight Plan API)",
@@ -96,6 +115,54 @@ namespace Saga.Server
             return new OkObjectResult(tracks);
         }
 
+        private async Task EnsureTokenAsync()
+        {
+            // If we have a token and it's valid for at least 5 more minutes, return.
+            if (!string.IsNullOrEmpty(_accessToken) && DateTime.UtcNow < _tokenExpiry.AddMinutes(-5))
+            {
+                return;
+            }
+
+            _logger.LogInformation("Acquiring new OpenSky Access Token...");
+
+            var clientId = _configuration["OpenSkyClientId"]?.Trim();
+            var clientSecret = _configuration["OpenSkyClientSecret"]?.Trim();
+
+            if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            {
+                _logger.LogWarning("OpenSky credentials missing from Configuration. Continuing as Anonymous.");
+                return;
+            }
+
+            var maskedId = clientId.Length > 5 ? clientId.Substring(0, 5) + "..." : clientId;
+            _logger.LogInformation($"Attempting OpenSky OAuth with ClientID: {maskedId}");
+
+            // OAuth2 Client Credentials Flow
+            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token");
+            tokenRequest.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("client_id", clientId),
+                new KeyValuePair<string, string>("client_secret", clientSecret),
+                new KeyValuePair<string, string>("grant_type", "client_credentials")
+            });
+
+            var response = await _httpClient.SendAsync(tokenRequest);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                var msg = $"Failed to acquire OpenSky token. Status: {response.StatusCode}. Response: {errorContent}";
+                _logger.LogError(msg);
+                throw new Exception(msg);
+            }
+
+            var tokenJson = await response.Content.ReadFromJsonAsync<OpenSkyTokenResponse>();
+
+            _accessToken = tokenJson?.AccessToken;
+            _tokenExpiry = DateTime.UtcNow.AddSeconds(tokenJson?.ExpiresIn ?? 3600);
+            _logger.LogInformation("Successfully acquired OpenSky Access Token.");
+        }
+
         // Helper to safely extract numbers from JSON Mixed Arrays (Handles nulls/ints/floats)
         private double GetDouble(JsonElement element)
         {
@@ -109,6 +176,15 @@ namespace Saga.Server
         {
             public int Time { get; set; }
             public JsonElement[][] States { get; set; } // Array of Arrays
+        }
+
+        private class OpenSkyTokenResponse
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("access_token")]
+            public string AccessToken { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
+            public int ExpiresIn { get; set; }
         }
     }
 }

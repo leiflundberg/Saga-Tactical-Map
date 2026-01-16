@@ -172,7 +172,7 @@ namespace Saga
 
         private void UpdateTracks(List<TacticalTrack> tracks)
         {
-            bool layerChanged = false;
+            bool dataChanged = false;
 
             foreach (var track in tracks)
             {
@@ -222,18 +222,41 @@ namespace Saga
                         TargetPosition = targetPoint
                     };
 
-                    _mapFeatures.Add(feature);
                     _units[track.Id] = newUnit;
-                    layerChanged = true;
+                    dataChanged = true;
                 }
             }
 
-            if (layerChanged)
+            if (dataChanged)
             {
-                _tacticalLayer.Features = _mapFeatures.ToList();
-                _tacticalLayer.DataHasChanged();
-                mapControl.Refresh();
+                UpdateLayerFeatures();
             }
+        }
+
+        private void Filter_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateLayerFeatures();
+        }
+
+        private void UpdateLayerFeatures()
+        {
+            if (_units == null || ChkAir == null || ChkSea == null || _tacticalLayer == null) return;
+
+            bool showAir = ChkAir.IsChecked == true;
+            bool showSea = ChkSea.IsChecked == true;
+
+            var visibleFeatures = _units.Values
+                .Where(unit =>
+                {
+                    string type = unit.Feature["Type"]?.ToString() ?? "Air";
+                    return (type == "Sea" && showSea) || (type != "Sea" && showAir);
+                })
+                .Select(unit => unit.Feature)
+                .ToList();
+
+            _tacticalLayer.Features = visibleFeatures;
+            _tacticalLayer.DataHasChanged();
+            mapControl.Refresh();
         }
 
         private void OnRendering(object? sender, EventArgs e)

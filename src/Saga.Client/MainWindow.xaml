@@ -15,6 +15,16 @@
 
         <mapsui:MapControl x:Name="mapControl" Grid.Column="0" />
 
+        <Border Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top" 
+                Background="#80000000" Margin="10" Padding="10" CornerRadius="4">
+            <StackPanel Orientation="Horizontal">
+                <CheckBox x:Name="ChkAir" Content="Show Air" Foreground="White" IsChecked="True" Margin="0,0,15,0"
+                          Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                <CheckBox x:Name="ChkSea" Content="Show Sea" Foreground="White" IsChecked="True"
+                          Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+            </StackPanel>
+        </Border>
+
         <Border Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" 
             Background="#80000000" Margin="10" Padding="5" CornerRadius="4"
             IsHitTestVisible="False">
