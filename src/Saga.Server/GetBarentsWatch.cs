@@ -10,10 +10,10 @@ using System.Text.Json;
 
 namespace Saga.Server
 {
-    public class GetSeaTacticalData
+    public class GetBarentsWatch
     {
         private readonly HttpClient _httpClient;
-        private readonly ILogger<GetSeaTacticalData> _logger;
+        private readonly ILogger<GetBarentsWatch> _logger;
         private readonly IConfiguration _configuration;
 
         // Static variable to cache the token so we don't ask for a new one every 5 seconds
@@ -21,14 +21,14 @@ namespace Saga.Server
         private static string? _accessToken;
         private static DateTime _tokenExpiry = DateTime.MinValue;
 
-        public GetSeaTacticalData(IHttpClientFactory httpClientFactory, ILogger<GetSeaTacticalData> logger, IConfiguration configuration)
+        public GetBarentsWatch(IHttpClientFactory httpClientFactory, ILogger<GetBarentsWatch> logger, IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient();
             _logger = logger;
             _configuration = configuration;
         }
 
-        [Function("GetSeaTacticalData")]
+        [Function("GetBarentsWatch")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
         {
             _logger.LogInformation("Fetching tactical sea picture for Norway...");

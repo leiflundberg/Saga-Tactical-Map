@@ -5,6 +5,7 @@ using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling;
 using Mapsui.Nts;
+using Microsoft.Extensions.Configuration;
 using NetTopologySuite.Geometries;
 using Saga.Shared;
 using System.IO;
@@ -22,8 +23,9 @@ namespace Saga
     {
         private MemoryLayer _tacticalLayer;
 
-        private readonly Mapsui.Styles.Image _planeImage;
-        private readonly Mapsui.Styles.Image _boatImage;
+        private readonly Image _planeImage;
+        private readonly Image _boatImage;
+        private readonly IConfiguration _configuration;
 
         private Dictionary<string, TrackedUnit> _units = [];
 
@@ -32,8 +34,8 @@ namespace Saga
         private readonly HttpClient _httpClient = new();
         
         // TODO: update with deployed azure function URL
-        private const string ApiUrl = "http://localhost:7038/api/GetTacticalData";
-        private const string SeaApiUrl = "http://localhost:7038/api/GetSeaTacticalData";
+        private const string ApiUrl = "http://localhost:7038/api/GetOpenSky";
+        private const string SeaApiUrl = "http://localhost:7038/api/GetBarentsWatch";
 
         private class TrackedUnit
         {
@@ -46,15 +48,22 @@ namespace Saga
         {
             InitializeComponent();
 
-            // Simple plane SVG
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables();
+
+            _configuration = builder.Build();
+
+            // Simple plane SVG (pointed)
             var planeSvg = "<svg width='24' height='24' viewBox='0 0 24 24'><path d='M12 0 L15 9 L23 14 L23 16 L15 13 L15 20 L19 23 L19 24 L12 22 L5 24 L5 23 L9 20 L9 13 L1 16 L1 14 L9 9 Z' fill='DarkOrange'/></svg>";
-            _planeImage = new Mapsui.Styles.Image { Source = "svg-content://" + planeSvg };
+            _planeImage = new Image { Source = "svg-content://" + planeSvg };
 
-            // Simple boat SVG (pointed front)
+            // Simple boat SVG (pointed)
             var boatSvg = "<svg width='16' height='24' viewBox='0 0 16 24'><path d='M8 0 L16 8 L16 24 L0 24 L0 8 Z' fill='DarkGreen' /></svg>";
-            _boatImage = new Mapsui.Styles.Image { Source = "svg-content://" + boatSvg };
+            _boatImage = new Image { Source = "svg-content://" + boatSvg };
 
-            var map = new Mapsui.Map();
+            var map = new Map();
             map.Layers.Add(OpenStreetMap.CreateTileLayer());
 
             var p1 = SphericalMercator.FromLonLat(new MPoint(MapConstants.Lomin, MapConstants.Lamin));
@@ -128,6 +137,7 @@ namespace Saga
             // Polling Loop for Air Data
             Task.Run(async () =>
             {
+                int delay = _configuration.GetValue<int>("PollingInterval:Air", 10000);
                 while (true)
                 {
                     try
@@ -143,13 +153,14 @@ namespace Saga
                         System.Diagnostics.Debug.WriteLine($"Error fetching air data: {ex.Message}");
                     }
 
-                    await Task.Delay(5000); // 5 seconds for Air
+                    await Task.Delay(delay);
                 }
             });
 
             // Polling Loop for Sea Data
             Task.Run(async () =>
             {
+                int delay = _configuration.GetValue<int>("PollingInterval:Sea", 15000);
                 while (true)
                 {
                     try
@@ -165,7 +176,7 @@ namespace Saga
                         System.Diagnostics.Debug.WriteLine($"Error fetching sea data: {ex.Message}");
                     }
 
-                    await Task.Delay(10000); // 10 seconds for Sea (slower updates)
+                    await Task.Delay(delay);
                 }
             });
         }

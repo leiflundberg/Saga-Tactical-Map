@@ -10,24 +10,24 @@ using System.Text.Json;
 
 namespace Saga.Server
 {
-    public class GetTacticalData
+    public class GetOpenSky
     {
         private readonly HttpClient _httpClient;
-        private readonly ILogger<GetTacticalData> _logger;
+        private readonly ILogger<GetOpenSky> _logger;
         private readonly IConfiguration _configuration;
 
         // Static variable to cache the token so we don't ask for a new one every request
         private static string? _accessToken;
         private static DateTime _tokenExpiry = DateTime.MinValue;
 
-        public GetTacticalData(IHttpClientFactory httpClientFactory, ILogger<GetTacticalData> logger, IConfiguration configuration)
+        public GetOpenSky(IHttpClientFactory httpClientFactory, ILogger<GetOpenSky> logger, IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient();
             _logger = logger;
             _configuration = configuration;
         }
 
-        [Function("GetTacticalData")]
+        [Function("GetOpenSky")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
         {
             _logger.LogInformation("Fetching tactical air picture for Norway...");
