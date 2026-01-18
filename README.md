@@ -1,6 +1,8 @@
 # S.A.G.A Tactical Map OSINT Viewer
 *Sea & Air Global Awareness*
 
+<video src="demo.mp4" width="100%" controls autoplay loop muted></video>
+
 Saga is a distributed Command & Control (C2) demonstrator. The intention is to create a map that allows a commander to view open source intelligence into a unified picture. The application aggregates real-time tracking data from disparate sources (air and sea), normalizes it via a cloud middleware and renders it on a Windows desktop client showing a geospatial map.
 
 # Architecture

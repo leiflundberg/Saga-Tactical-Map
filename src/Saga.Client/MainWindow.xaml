@@ -25,7 +25,7 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" 
+        <Border x:Name="DebugOverlay" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" 
             Background="#80000000" Margin="10" Padding="5" CornerRadius="4"
             IsHitTestVisible="False">
             <TextBlock x:Name="TxtDebug" Foreground="#00FF00" FontFamily="Consolas" FontSize="12"

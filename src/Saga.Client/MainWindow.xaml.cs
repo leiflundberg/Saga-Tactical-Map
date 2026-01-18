@@ -5,6 +5,8 @@ using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling;
 using Mapsui.Nts;
+using Mapsui.Logging;
+using Mapsui.Widgets;
 using Microsoft.Extensions.Configuration;
 using NetTopologySuite.Geometries;
 using Saga.Shared;
@@ -26,6 +28,7 @@ namespace Saga
         private readonly Image _planeImage;
         private readonly Image _boatImage;
         private readonly IConfiguration _configuration;
+        private readonly bool _showDebug;
 
         private Dictionary<string, TrackedUnit> _units = [];
 
@@ -50,10 +53,27 @@ namespace Saga
 
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables();
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+
+            // Try to find the server's local.settings.json for shared debug config
+            // Use AppContext.BaseDirectory to find the path relative to the executable
+            var serverSettingsPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../Saga.Server/local.settings.json"));
+            builder.AddJsonFile(serverSettingsPath, optional: true, reloadOnChange: true);
+
+            builder.AddEnvironmentVariables();
 
             _configuration = builder.Build();
+
+            // Check standard "Debug" key, then override with "Values:DEBUG" from server settings if present
+            _showDebug = _configuration.GetValue<bool>("Debug", true);
+            
+            var serverDebugValue = _configuration["Values:DEBUG"];
+            if (!string.IsNullOrEmpty(serverDebugValue) && bool.TryParse(serverDebugValue, out bool serverDebug))
+            {
+                _showDebug = serverDebug;
+            }
+
+            DebugOverlay.Visibility = _showDebug ? Visibility.Visible : Visibility.Collapsed;
 
             // Simple plane SVG (pointed)
             var planeSvg = "<svg width='24' height='24' viewBox='0 0 24 24'><path d='M12 0 L15 9 L23 14 L23 16 L15 13 L15 20 L19 23 L19 24 L12 22 L5 24 L5 23 L9 20 L9 13 L1 16 L1 14 L9 9 Z' fill='DarkOrange'/></svg>";
@@ -130,6 +150,18 @@ namespace Saga
             var northernEuropeCenter = SphericalMercator.FromLonLat(new MPoint(14.0, 63.0));
 
             mapControl.Map.Navigator.CenterOnAndZoomTo(northernEuropeCenter, mapControl.Map.Navigator.Resolutions[5]);
+
+            var performanceWidget = mapControl.Map.Widgets.FirstOrDefault(w => w.GetType().Name == "PerformanceWidget");
+            if (performanceWidget != null)
+            {
+                performanceWidget.Enabled = _showDebug;
+            }
+
+            var loggingWidget = mapControl.Map.Widgets.FirstOrDefault(w => w.GetType().Name == "LoggingWidget");
+            if (loggingWidget != null)
+            {
+                loggingWidget.Enabled = _showDebug;
+            }
         }
 
         private void StartLiveTracking()
@@ -357,6 +389,8 @@ namespace Saga
 
         private void OnViewportChanged(object? sender, EventArgs e)
         {
+            if (!_showDebug) return;
+
             Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 var viewport = mapControl.Map.Navigator.Viewport;
